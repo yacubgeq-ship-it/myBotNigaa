@@ -1437,28 +1437,70 @@ def complete_quest(uid, quest_name):
     if "quests" in p and quest_name in p["quests"]:
         if not p["quests"][quest_name]["done"]: p["quests"][quest_name]["done"] = True; save_data()
 def get_main_kb():
-kb = ReplyKeyboardMarkup(resize_keyboard=True)
-kb.row(KeyboardButton("🎮 Игры"), KeyboardButton("👤 Профиль"))
-kb.row(KeyboardButton("🛡 Клан"), KeyboardButton("💰 Баланс"))
-kb.row(KeyboardButton("📖 Помощь"), KeyboardButton("🏆 Топ"))
-return kb
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(KeyboardButton("🎮 Игры"), KeyboardButton("👤 Профиль"))
+    kb.row(KeyboardButton("🛡 Клан"), KeyboardButton("💰 Баланс"))
+    kb.row(KeyboardButton("📖 Помощь"), KeyboardButton("🏆 Топ"))
+    return kb
 def get_games_kb():
-kb = ReplyKeyboardMarkup(resize_keyboard=True)
-kb.row(KeyboardButton("💣 Мины"), KeyboardButton("🚀 Краш"))
-kb.row(KeyboardButton("🎰 Слоты"), KeyboardButton("🃏 Джокер"))
-kb.row(KeyboardButton("🎡 Рулетка"), KeyboardButton("🔙 Главное меню"))
-return kb
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(KeyboardButton("💣 Мины"), KeyboardButton("🚀 Краш"))
+    kb.row(KeyboardButton("🎰 Слоты"), KeyboardButton("🃏 Джокер"))
+    kb.row(KeyboardButton("🎡 Рулетка"), KeyboardButton("🔙 Главное меню"))
+    return kb
 def get_cancel_kb():
-kb = ReplyKeyboardMarkup(resize_keyboard=True)
-kb.row(KeyboardButton("❌ Отмена"))
-return kb
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(KeyboardButton("❌ Отмена"))
+    return kb
 @bot.message_handler(func=lambda m: m.text and m.text.strip() in ["🔙 Главное меню", "❌ Отмена"])
 def back_to_main(message):
-bot.clear_step_handler_by_chat_id(message.chat.id)
-bot.send_message(message.chat.id, "🏠 Главное меню:", reply_markup=get_main_kb())
+    bot.clear_step_handler_by_chat_id(message.chat.id)
+    bot.send_message(message.chat.id, "🏠 Главное меню:", reply_markup=get_main_kb())
 @bot.message_handler(func=lambda m: m.text and m.text.strip() == "🎮 Игры")
 def menu_games(message):
-bot.send_message(message.chat.id, "🕹 Выберите игру:", reply_markup=get_games_kb())
+    bot.send_message(message.chat.id, "🕹 Выберите игру:", reply_markup=get_games_kb())
+@bot.message_handler(func=lambda m: m.text and m.text.strip() == "💣 Мины")
+def btn_mines(message):
+    msg = bot.send_message(message.chat.id, "💣 МИНЫ\nВведите сумму ставки числом:", reply_markup=get_cancel_kb(), parse_mode="Markdown")
+    bot.register_next_step_handler(msg, step_mines_bet)
+def step_mines_bet(message):
+    if not message.text or message.text.strip() in ["❌ Отмена", "🔙 Главное меню"]:
+        return back_to_main(message)
+    if not message.text.strip().isdigit():
+        msg = bot.send_message(message.chat.id, "❌ Введите сумму ставки числом (например: 1000):")
+        return bot.register_next_step_handler(msg, step_mines_bet)
+    bet = message.text.strip()
+    msg = bot.send_message(message.chat.id, "💣 Введите количество мин (3, 5 или 9):", parse_mode="Markdown")
+    bot.register_next_step_handler(msg, step_mines_bombs, bet)
+def step_mines_bombs(message, bet):
+    if not message.text or message.text.strip() in ["❌ Отмена", "🔙 Главное меню"]:
+        return back_to_main(message)
+    bombs = message.text.strip()
+    bot.send_message(message.chat.id, "🎮 Запускаем игру...", reply_markup=get_games_kb())
+    message.text = f"мины {bet} {bombs}"
+    start_mines(message)
+@bot.message_handler(func=lambda m: m.text and m.text.strip() in ["🚀 Краш", "🎰 Слоты", "🃏 Джокер"])
+def btn_simple_games(message):
+    game_name = message.text.strip()
+    cmd_map = {"🚀 Краш": "краш", "🎰 Слоты": "слот", "🃏 Джокер": "джокер"}
+    cmd = cmd_map[game_name]
+    msg = bot.send_message(message.chat.id, f"{game_name}\nВведите сумму ставки числом:", reply_markup=get_cancel_kb())
+    bot.register_next_step_handler(msg, step_simple_bet, cmd)
+def step_simple_bet(message, cmd):
+    if not message.text or message.text.strip() in ["❌ Отмена", "🔙 Главное меню"]:
+        return back_to_main(message)
+    if not message.text.strip().isdigit():
+        msg = bot.send_message(message.chat.id, "❌ Введите сумму ставки числом:")
+        return bot.register_next_step_handler(msg, step_simple_bet, cmd)
+    bet = message.text.strip()
+    bot.send_message(message.chat.id, "🎮 Ставка принята!", reply_markup=get_games_kb())
+    message.text = f"{cmd} {bet}"
+    if cmd == "краш": start_crash(message)
+    elif cmd == "слот": slot_machine(message)
+    elif cmd == "джокер": start_joker(message)
+@bot.message_handler(func=lambda m: m.text and m.text.strip() == "🎡 Рулетка")
+def btn_roulette(message):
+    bot.send_message(message.chat.id, "🎡 РУЛЕТКА\nНапишите ставку в чат (например: 1000 красное или 500 7), а затем напишите го для запуска.", parse_mode="Markdown"
 
 print("BOT STARTED")
 bot.infinity_polling(skip_pending=True)
