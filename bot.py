@@ -1,5 +1,5 @@
 import os, random, math, time, telebot, threading, json, pathlib
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, ReplyKeyboardMarkup, KeyboardButton
 
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN: raise ValueError("Не задан BOT_TOKEN")
@@ -1436,6 +1436,29 @@ def complete_quest(uid, quest_name):
     uid = str(uid); p = data["players"].get(uid, {})
     if "quests" in p and quest_name in p["quests"]:
         if not p["quests"][quest_name]["done"]: p["quests"][quest_name]["done"] = True; save_data()
+def get_main_kb():
+kb = ReplyKeyboardMarkup(resize_keyboard=True)
+kb.row(KeyboardButton("🎮 Игры"), KeyboardButton("👤 Профиль"))
+kb.row(KeyboardButton("🛡 Клан"), KeyboardButton("💰 Баланс"))
+kb.row(KeyboardButton("📖 Помощь"), KeyboardButton("🏆 Топ"))
+return kb
+def get_games_kb():
+kb = ReplyKeyboardMarkup(resize_keyboard=True)
+kb.row(KeyboardButton("💣 Мины"), KeyboardButton("🚀 Краш"))
+kb.row(KeyboardButton("🎰 Слоты"), KeyboardButton("🃏 Джокер"))
+kb.row(KeyboardButton("🎡 Рулетка"), KeyboardButton("🔙 Главное меню"))
+return kb
+def get_cancel_kb():
+kb = ReplyKeyboardMarkup(resize_keyboard=True)
+kb.row(KeyboardButton("❌ Отмена"))
+return kb
+@bot.message_handler(func=lambda m: m.text and m.text.strip() in ["🔙 Главное меню", "❌ Отмена"])
+def back_to_main(message):
+bot.clear_step_handler_by_chat_id(message.chat.id)
+bot.send_message(message.chat.id, "🏠 Главное меню:", reply_markup=get_main_kb())
+@bot.message_handler(func=lambda m: m.text and m.text.strip() == "🎮 Игры")
+def menu_games(message):
+bot.send_message(message.chat.id, "🕹 Выберите игру:", reply_markup=get_games_kb())
 
 print("BOT STARTED")
 bot.infinity_polling(skip_pending=True)
