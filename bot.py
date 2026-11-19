@@ -1,7 +1,7 @@
 import os, random, math, time, telebot, threading, json, pathlib
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
 
-TOKEN = 9293587059:AAHuXgdJ2KUVB178YaNV-gaDITnnoOx75aE("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN: raise ValueError("Не задан BOT_TOKEN")
 
 ADMIN_IDS = [8158495271]
