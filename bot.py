@@ -186,6 +186,7 @@ def register_user_by_id(uid):
 # ==================== СТАРТ И ПОМОЩЬ ====================
 
 CHAT_LINK = "https://t.me/+cdHaQDl-5ro0OWQy"
+SITE_URL = "https://sailix-kazino.deploya.online"
 REF_BONUS_INVITER = 5000
 REF_BONUS_NEW = 1000
 
@@ -217,7 +218,7 @@ def start(message):
         f"🎁 Забирай ежедневный бонус в меню\n"
         f"💼 Открой бизнес — пассивный доход\n"
         f"🛡 Создай клан и играй с друзьями\n"
-        f"🌎 Наш сайт - [сайт]({LINK_LINK})\n"
+        f"🌎 Наш сайт - [сайт]({SITE.URL})\n"
         f"💬 Наш чат — [вступить в чат]({CHAT_LINK})\n"
         f"📖 Помощь — по любому вопросу\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
