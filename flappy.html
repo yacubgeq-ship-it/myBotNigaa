@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>🐦 Птичка — SAILIX</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body { height:100%; overflow:hidden; background:#0b1020; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; color:#e8ecf7; }
+  #wrap { position:relative; width:100%; height:100%; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  .btn { background:#2f7df6; color:#fff; border:none; border-radius:14px; padding:12px 26px;
+         font-size:16px; font-weight:700; cursor:pointer; }
+  .btn.ghost { background:#1d2a4d; }
+  #over { position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
+          justify-content:center; background:rgba(6,10,22,.82); text-align:center; padding:16px; }
+  #over.show { display:flex; }
+  .card { background:#101830; border:1px solid #24345c; border-radius:20px; padding:18px; width:100%; max-width:420px; max-height:92%; overflow:auto; }
+  h2 { font-size:22px; margin-bottom:6px; }
+  .score-line { font-size:16px; margin:4px 0; }
+  .rec { color:#ffd76a; font-weight:800; }
+  .tops { display:flex; gap:10px; margin-top:12px; text-align:left; }
+  .top { flex:1; background:#0d1428; border:1px solid #1f2c50; border-radius:12px; padding:8px 10px; font-size:12px; }
+  .top h3 { font-size:12px; margin-bottom:6px; color:#7cc7ff; }
+  .top ol { margin-left:16px; }
+  .top li { margin:3px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .top li.me { color:#ffd76a; font-weight:700; }
+  .row { display:flex; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <button id="topbtn" class="btn ghost" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);" onclick="showTopsFromMenu()">🏆 Топ игроков</button>
+  <div id="over">
+    <div class="card">
+      <h2 id="ov-title">💥 Краш!</h2>
+      <div class="score-line">Очки: <b id="ov-score">0</b></div>
+      <div class="score-line" id="ov-best"></div>
+      <div class="tops">
+        <div class="top"><h3>🏆 По рекорду</h3><ol id="top-bird"><li>загрузка…</li></ol></div>
+        <div class="top"><h3>💰 По балансу</h3><ol id="top-coin"><li>загрузка…</li></ol></div>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="restart()">Ещё раз</button>
+        <button class="btn ghost" onclick="location.href='index.html'">← Рабочий стол</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const CW = 480, CH = 640, CELL = CH/10;
+const G = 2200, JUMP = Math.sqrt(2*G*1.05*CELL);
+const SPEED = 168, PIPE_W = 74, GAP = CELL*3.5, SPACING = 272;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+function fit(){ const r = cv.getBoundingClientRect(); cv.width = CW; cv.height = CH; }
+fit();
+const tg = window.Telegram && Telegram.WebApp ? Telegram.WebApp : null;
+try { if (tg) { tg.ready(); tg.expand(); } } catch(e) {}
+const INIT = tg && tg.initData ? tg.initData : '';
+const MYNAME = (()=>{ try { const u = JSON.parse(new URLSearchParams(INIT).get('user')||'{}'); return u.username || u.first_name || 'Игрок'; } catch(e){ return 'Игрок'; } })();
+
+let state = 'menu', t = 0, bird = {y: CH*0.45, v: 0}, pipes = [], clouds = [], score = 0;
+let best = +(localStorage.getItem('bird_best') || 0), lastScoreSent = -1;
+for (let i=0;i<6;i++) clouds.push({x: Math.random()*CW, y: 30+Math.random()*220, s: 0.5+Math.random()*0.8});
+
+let ac = null;
+function beep(freq, dur, type, vol){
+  try {
+    if (!ac) ac = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ac.createOscillator(), gn = ac.createGain();
+    o.type = type||'square'; o.frequency.value = freq;
+    gn.gain.setValueAtTime(vol||0.05, ac.currentTime);
+    gn.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    o.connect(gn); gn.connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+
+function reset(){ bird = {y: CH*0.45, v: 0}; pipes = []; score = 0; t = 0; state = 'menu'; }
+function start(){ state = 'fly'; flap(); }
+function flap(){ bird.v = -JUMP; beep(660, 0.08, 'square', 0.05); }
+function die(){
+  state = 'over'; beep(180, 0.35, 'sawtooth', 0.09);
+  const isRec = score > best;
+  if (isRec) { best = score; localStorage.setItem('bird_best', best); }
+  document.getElementById('ov-title').textContent = isRec ? '🐦 НОВЫЙ РЕКОРД!' : '💥 Краш!';
+  document.getElementById('ov-score').textContent = score;
+  document.getElementById('ov-best').innerHTML = isRec ? '<span class="rec">Личный рекорд: ' + best + '</span>' : ('Рекорд: ' + best);
+  if (score !== lastScoreSent) { lastScoreSent = score; sendScore(score); }
+  loadTops();
+  document.getElementById('over').classList.add('show');
+}
+function restart(){ document.getElementById('over').classList.remove('show'); document.getElementById('topbtn').style.display = ''; reset(); }
+function sendScore(sc){
+  if (!INIT) return;
+  fetch('/api/bird_score', {method:'POST', headers:{'Content-Type':'application/json','Authorization':INIT},
+    body: JSON.stringify({score: sc})}).catch(()=>{});
+}
+function fill(listId, top){
+  const el = document.getElementById(listId);
+  if (!top || !top.length) { el.innerHTML = '<li>пока пусто</li>'; return; }
+  el.innerHTML = top.map(p => '<li class="' + (p.me?'me':'') + '">' + String(p.name).replace(/[<>&]/g,'') + ' — ' + p.score + '</li>').join('');
+}
+async function loadTops(){
+  if (!INIT) {
+    document.getElementById('top-bird').innerHTML = '<li>откройте из бота</li>';
+    document.getElementById('top-coin').innerHTML = '<li>откройте из бота</li>';
+    return;
+  }
+  try {
+    const h = {headers:{'Authorization':INIT}};
+    const [b, c] = await Promise.all([fetch('/api/bird_top', h).then(r=>r.json()), fetch('/api/coin_top', h).then(r=>r.json())]);
+    fill('top-bird', b.top); fill('top-coin', c.top);
+  } catch(e) {
+    document.getElementById('top-bird').innerHTML = '<li>нет связи</li>';
+    document.getElementById('top-coin').innerHTML = '<li>нет связи</li>';
+  }
+}
+function showTopsFromMenu(){
+  {
+    document.getElementById('topbtn').style.display = 'none';
+    if (state !== 'menu') { state = 'menu'; }
+    { document.getElementById('ov-title').textContent = '🏆 Топ игроков';
+    document.getElementById('ov-score').textContent = best;
+    document.getElementById('ov-best').textContent = 'Ваш рекорд: ' + best;
+    loadTops(); document.getElementById('over').classList.add('show'); }
+  }
+}
+
+function spawnPipe(x){
+  const gapY = CELL*1.6 + Math.random()*(CH - GAP - CELL*2.6);
+  pipes.push({x: x, top: gapY, passed: false});
+}
+for (let i=0;i<4;i++) spawnPipe(CW + 140 + i*SPACING);
+
+function hit(o){ return bird.y - 13 < o.top || bird.y + 13 > o.top + GAP; }
+
+function update(dt){
+  t += dt;
+  for (const c of clouds) { c.x -= SPEED*0.25*c.s*dt; if (c.x < -90) { c.x = CW + 60; c.y = 30 + Math.random()*220; c.s = 0.5+Math.random()*0.8; } }
+  if (state === 'menu') { bird.y = CH*0.45 + Math.sin(t*3)*8; return; }
+  if (state !== 'fly') return;
+  bird.v += G*dt; bird.y += bird.v*dt;
+  for (const p of pipes) p.x -= SPEED*dt;
+  if (pipes.length && pipes[0].x < -PIPE_W-10) pipes.shift();
+  const lastX = pipes.length ? pipes[pipes.length-1].x : CW;
+  if (CW - lastX >= SPACING) spawnPipe(lastX + SPACING);
+  if (bird.y + 13 > CH - CELL*0.4) { bird.y = CH - CELL*0.4 - 13; die(); return; }
+  if (bird.y - 13 < 0) { bird.y = 13; bird.v = 0; }
+  for (const p of pipes) {
+    if (bird.x0 + 13 > p.x && bird.x0 - 13 < p.x + PIPE_W && hit(p)) { die(); return; }
+    if (!p.passed && p.x + PIPE_W < bird.x0) { p.passed = true; score++; beep(920, 0.09, 'triangle', 0.05); }
+  }
+}
+
+function draw(){
+  // небо
+  const sky = ctx.createLinearGradient(0,0,0,CH);
+  sky.addColorStop(0,'#4aa3e8'); sky.addColorStop(1,'#8fd0f2');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,CW,CH);
+  // облака
+  ctx.fillStyle = 'rgba(255,255,255,.75)';
+  for (const c of clouds) {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 16*c.s, 0, 7); ctx.arc(c.x+18*c.s, c.y+4*c.s, 12*c.s, 0, 7);
+    ctx.arc(c.x-18*c.s, c.y+5*c.s, 11*c.s, 0, 7); ctx.fill();
+  }
+  // столбы
+  for (const p of pipes) {
+    ctx.fillStyle = '#3fa34d'; ctx.strokeStyle = '#2c7a38'; ctx.lineWidth = 3;
+    ctx.fillRect(p.x, 0, PIPE_W, p.top - 14);
+    ctx.strokeRect(p.x, 0, PIPE_W, p.top - 14);
+    ctx.fillRect(p.x-5, p.top-14, PIPE_W+10, 14); ctx.strokeRect(p.x-5, p.top-14, PIPE_W+10, 14);
+    ctx.fillRect(p.x, p.top + GAP, PIPE_W, CH - p.top - GAP);
+    ctx.strokeRect(p.x, p.top + GAP, PIPE_W, CH - p.top - GAP);
+    ctx.fillRect(p.x-5, p.top + GAP, PIPE_W+10, 14); ctx.strokeRect(p.x-5, p.top + GAP, PIPE_W+10, 14);
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    ctx.fillRect(p.x+7, 0, 8, p.top-14); ctx.fillRect(p.x+7, p.top+GAP+14, 8, CH);
+  }
+  // земля
+  ctx.fillStyle = '#d8b56a'; ctx.fillRect(0, CH - CELL*0.4, CW, CELL*0.4);
+  ctx.fillStyle = '#c3a054';
+  const off = (t*SPEED) % 32;
+  for (let x = -off; x < CW; x += 32) ctx.fillRect(x, CH - CELL*0.4, 16, 6);
+  drawBird(bird.x0, bird.y, Math.atan2(bird.v, 380));
+  // счёт
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(CW/2, 54, 34, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 34px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(score, CW/2, 66);
+  if (state === 'menu') {
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, CW, CH);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 30px sans-serif'; ctx.fillText('🐦 ПТИЧКА', CW/2, CH*0.34);
+    ctx.font = '16px sans-serif'; ctx.fillStyle = '#cfe0ff';
+    ctx.fillText('Нажмите, чтобы начать', CW/2, CH*0.34 + 34);
+    ctx.font = '13px sans-serif'; ctx.fillStyle = '#9fb4dd';
+    ctx.fillText('Тап — прыжок. Пролетайте между столбами!', CW/2, CH*0.34 + 62);
+    ctx.fillText('Личный рекорд: ' + best, CW/2, CH*0.34 + 86);
+  }
+}
+
+let wingT = 0;
+function drawBird(x, y, ang){
+  wingT += 0.25;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(Math.max(-0.5, Math.min(1.1, ang)));
+  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#c99a12'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(0, 0, 15, 11, 0, 0, 7); ctx.fill(); ctx.stroke();
+  // крыло
+  const wf = Math.sin(wingT*2.2)*6;
+  ctx.fillStyle = '#f4a72c';
+  ctx.beginPath(); ctx.ellipse(-3, 2 + wf*0.3, 8, 5 - Math.abs(wf)*0.25, wf*0.08, 0, 7); ctx.fill(); ctx.stroke();
+  // клюв
+  ctx.fillStyle = '#ff7a1a';
+  ctx.beginPath(); ctx.moveTo(13,-2); ctx.lineTo(23,1); ctx.lineTo(13,5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // глаз
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(7,-4,4.5,0,7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(8.5,-4,2,0,7); ctx.fill();
+  ctx.restore();
+}
+
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  update(dt); draw();
+  requestAnimationFrame(loop);
+}
+bird.x0 = CW*0.28;
+addEventListener('pointerdown', e => {
+  if (document.getElementById('over').classList.contains('show')) return;
+  if (state === 'menu') start(); else if (state === 'fly') flap();
+});
+addEventListener('keydown', e => { if (e.code === 'Space') { if (state==='menu') start(); else if (state==='fly') flap(); } });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

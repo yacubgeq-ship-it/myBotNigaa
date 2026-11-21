@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SAILIX — Игры</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body { background:#0b1020; color:#e8ecf7; font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+         display:flex; flex-direction:column; align-items:center; overflow:hidden; }
+  .head { margin-top:26px; text-align:center; }
+  .logo { font-size:30px; font-weight:800; letter-spacing:2px; color:#7cc7ff; }
+  .logo span { color:#ffd76a; }
+  .sub { margin-top:6px; color:#8fa2c7; font-size:13px; }
+  .grid { margin-top:34px; display:flex; gap:22px; flex-wrap:wrap; justify-content:center; padding:0 16px; }
+  .tile { width:150px; background:linear-gradient(160deg,#16203a,#101830); border:1px solid #24345c;
+          border-radius:22px; padding:20px 14px 16px; text-align:center; cursor:pointer; user-select:none;
+          transition:transform .15s, box-shadow .15s; }
+  .tile:active { transform:scale(.94); }
+  .tile .ic { font-size:52px; line-height:1; filter:drop-shadow(0 6px 14px rgba(0,0,0,.5)); }
+  .tile .nm { margin-top:12px; font-weight:700; font-size:16px; }
+  .tile .ds { margin-top:4px; color:#8fa2c7; font-size:11px; line-height:1.35; }
+  .tile .go { margin-top:12px; background:#2f7df6; color:#fff; border:none; border-radius:12px;
+              padding:9px 18px; font-size:13px; font-weight:700; }
+  .foot { margin-top:auto; margin-bottom:22px; color:#54658a; font-size:11px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="logo">SAILIX <span>ARCADE</span></div>
+    <div class="sub">Рабочий стол мини-приложения · выберите игру</div>
+  </div>
+  <div class="grid">
+    <div class="tile" onclick="location.href='battleship.html'">
+      <div class="ic">🚢</div>
+      <div class="nm">Корабли</div>
+      <div class="ds">Морской бой: с ботом, вдвоём и онлайн</div>
+      <button class="go">Играть ▶</button>
+    </div>
+    <div class="tile" onclick="location.href='flappy.html'">
+      <div class="ic">🐦</div>
+      <div class="nm">Птичка</div>
+      <div class="ds">Пролетай между столбами и ставь рекорд</div>
+      <button class="go">Играть ▶</button>
+    </div>
+  </div>
+  <div class="foot">SAILIX CASINO · мини-приложение</div>
+<script>
+  try { Telegram.WebApp.ready(); Telegram.WebApp.expand(); } catch(e) {}
+</script>
+</body>
+</html>

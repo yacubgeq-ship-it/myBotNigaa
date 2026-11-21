@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>⚓ Корабли — морской бой</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body { height:100%; }
+  body { background:#0b1020; color:#e8ecf7; font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+         display:flex; flex-direction:column; align-items:center; padding:10px; overflow-y:auto; }
+  h1 { font-size:22px; margin:8px 0 2px; color:#7cc7ff; }
+  .sub { color:#8fa2c7; font-size:12px; text-align:center; }
+  .screens { width:100%; max-width:430px; display:flex; flex-direction:column; align-items:center; }
+  .screen { display:none; width:100%; flex-direction:column; align-items:center; }
+  .screen.show { display:flex; }
+  .menu-btn { width:100%; max-width:320px; margin:7px 0; background:linear-gradient(160deg,#16203a,#101830);
+              border:1px solid #24345c; color:#e8ecf7; border-radius:16px; padding:14px; font-size:16px;
+              font-weight:700; cursor:pointer; }
+  .menu-btn:active { transform:scale(.97); }
+  .boards { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
+  .boardbox { text-align:center; }
+  .btitle { font-size:12px; color:#9fb4dd; margin-bottom:4px; font-weight:700; }
+  .grid { display:grid; grid-template-columns:repeat(10,1fr); gap:2px; background:#16203a;
+          border:2px solid #24345c; border-radius:10px; padding:5px; }
+  .cell { width:min(8.4vw,33px); height:min(8.4vw,33px); border-radius:5px; background:#12233f;
+          display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .cell.ship { background:#3b6fd4; }
+  .cell.sel { outline:2px solid #ffd76a; }
+  .cell.miss { background:#0d1428; color:#6f83ad; }
+  .cell.hit { background:#c0392b; }
+  .cell.dead { background:#7a1f16; color:#ffd76a; }
+  .cell.clickable { cursor:pointer; }
+  .fleet { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin:10px 0; }
+  .fbtn { background:#1d2a4d; color:#cfe0ff; border:1px solid #2c3e6e; border-radius:10px; padding:7px 12px;
+          font-size:13px; font-weight:700; cursor:pointer; }
+  .fbtn.sel { background:#2f7df6; color:#fff; border-color:#5ea0ff; }
+  .fbtn.done { opacity:.35; pointer-events:none; }
+  .btn { background:#2f7df6; color:#fff; border:none; border-radius:12px; padding:10px 20px;
+         font-size:14px; font-weight:700; cursor:pointer; margin:5px; }
+  .btn.ghost { background:#1d2a4d; }
+  .btn.red { background:#b03a2e; }
+  .status { margin:8px 0; font-size:14px; color:#cfe0ff; text-align:center; min-height:20px; }
+  .plist { width:100%; max-width:340px; margin-top:6px; }
+  .prow { display:flex; justify-content:space-between; align-items:center; background:#101830;
+          border:1px solid #24345c; border-radius:12px; padding:9px 12px; margin:6px 0; font-size:14px; }
+  .prow button { background:#2f7df6; color:#fff; border:none; border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer; }
+  .prow button:disabled { background:#2a3557; color:#8fa2c7; }
+  .overlay { position:fixed; inset:0; background:rgba(6,10,22,.92); display:none;
+             flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; z-index:10; }
+  .overlay.show { display:flex; }
+  .msg { max-width:360px; font-size:15px; line-height:1.5; color:#cfe0ff; }
+  .back { position:fixed; top:8px; left:8px; z-index:5; background:#1d2a4d; color:#cfe0ff; border:1px solid #2c3e6e;
+          border-radius:10px; padding:7px 12px; font-size:13px; cursor:pointer; }
+</style>
+</head>
+<body>
+  <button class="back" onclick="location.href='index.html'">← Рабочий стол</button>
+  <div class="screens">
+    <h1 id="ttl">⚓ КОРАБЛИ</h1>
+    <div class="sub" id="stl">Морской бой. Флот: 1 линкор, 2 крейсера, 3 эсминца, 4 катера.<br>Корабли не соприкасаются даже углами.</div>
+
+    <div class="screen show" id="scr-menu">
+      <button class="menu-btn" onclick="startBot()">🤖 С ботом</button>
+      <button class="menu-btn" onclick="startHotseat()">👥👥 Двое на одном телефоне</button>
+      <button class="menu-btn" onclick="startOnline()">👥 С друзьями (онлайн)</button>
+      <button class="menu-btn ghost" onclick="showInfo()">ℹ️ Онлайн-режим</button>
+    </div>
+
+    <div class="screen" id="scr-setup">
+      <div class="status" id="setup-status">⚓ Расставьте флот</div>
+      <div class="fleet" id="fleet-btns"></div>
+      <div class="boards"><div class="boardbox"><div class="btitle" id="setup-title">PLAYER 1</div><div class="grid" id="setup-grid"></div></div></div>
+      <div>
+        <button class="btn ghost" onclick="randomFleet()">🎲 Случайно</button>
+        <button class="btn ghost" onclick="clearFleet()">🔄 Сброс</button>
+        <button class="btn" id="ready-btn" onclick="confirmFleet()">⚔️ В бой!</button>
+      </div>
+    </div>
+
+    <div class="screen" id="scr-pass">
+      <div class="status" id="pass-status">📱 Передайте телефон</div>
+      <button class="btn" id="pass-btn" onclick="passNext()">Я Player 2 — продолжить</button>
+    </div>
+
+    <div class="screen" id="scr-battle">
+      <div class="status" id="battle-status"></div>
+      <div class="boards">
+        <div class="boardbox"><div class="btitle">Ваш флот</div><div class="grid" id="own-grid"></div></div>
+        <div class="boardbox"><div class="btitle" id="enemy-title">Флот соперника</div><div class="grid" id="enemy-grid"></div></div>
+      </div>
+      <button class="btn ghost" onclick="toMenu()">🔄 Новая игра</button>
+    </div>
+
+    <div class="screen" id="scr-online">
+      <div class="status" id="online-status">Загрузка…</div>
+      <div class="plist" id="plist"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ov-info">
+    <div class="msg"><b>ℹ️ Онлайн-режим</b><br><br>
+      Вы видите всех игроков, у кого открыт бот. Нажмите «Вызвать» — сопернику в чат придут кнопки
+      «Принять/Отклонить». После принятия флоты расставляются случайно, и партия начинается.<br><br>
+      Победа — <b>300 🪙</b>.</div>
+    <button class="btn" onclick="hide('ov-info')">Понятно</button>
+  </div>
+  <div class="overlay" id="ov-over">
+    <div class="msg" id="over-msg"></div>
+    <button class="btn" onclick="toMenu()">🔄 Играть снова</button>
+    <button class="btn ghost" onclick="location.href='index.html'">← Рабочий стол</button>
+  </div>
+
+<script>
+</body>
+</html>
+
+</script>
+</body>
+</html>
+
+/* ================= CORE ================= */
+const tg = window.Telegram && Telegram.WebApp ? Telegram.WebApp : null;
+try { if (tg) { tg.ready(); tg.expand(); } } catch(e) {}
+const INIT = tg && tg.initData ? tg.initData : '';
+const MYID = (()=>{ try { return String((JSON.parse(new URLSearchParams(INIT).get('user')||'{}')||{}).id||''); } catch(e){ return ''; } })();
+const N = 10, FLEET = [4,3,3,2,2,2,1,1,1,1];
+const D = id => document.getElementById(id);
+function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.remove('show')); D(id).classList.add('show'); }
+function hide(id){ D(id).classList.remove('show'); }
+function emptyGrid(){ return Array(100).fill(0); }
+function idx(r,c){ return r*10+c; }
+function inb(r,c){ return r>=0&&r<N&&c>=0&&c<N; }
+function neighbors(i){ const r=(i/10)|0, c=i%10, out=[]; for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){ if(!dr&&!dc) continue; if(inb(r+dr,c+dc)) out.push(idx(r+dr,c+dc)); } return out; }
+function canPlace(g, cells){ for(const i of cells){ if(g[i]!==0) return false; for(const n of neighbors(i)) if(g[n]===1) return false; } return true; }
+function shipCells(a,b){ const ra=(a/10)|0, ca=a%10, rb=(b/10)|0, cb=b%10, cells=[]; if(ra===rb){ const lo=Math.min(ca,cb), hi=Math.max(ca,cb); for(let c=lo;c<=hi;c++) cells.push(idx(ra,c)); } else if(ca===cb){ const lo=Math.min(ra,rb), hi=Math.max(ra,rb); for(let r=lo;r<=hi;r++) cells.push(idx(r,ca)); } return cells; }
+function components(g){ const seen=new Set(), sizes=[]; for(let i=0;i<100;i++){ if(g[i]!==1||seen.has(i)) continue; const q=[i]; seen.add(i); let n=0; while(q.length){ const cur=q.pop(); n++; for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){ const r=(cur/10)|0, c=cur%10; if(!inb(r+dr,c+dc)) continue; const nk=idx(r+dr,c+dc); if(g[nk]===1&&!seen.has(nk)){ seen.add(nk); q.push(nk); } } } sizes.push(n); } return sizes; }
+function validateFleet(g){ const s=components(g).slice().sort((a,b)=>a-b), f=FLEET.slice().sort((a,b)=>a-b); return s.length===f.length && s.every((v,i)=>v===f[i]); }
+function randomFleet(){
+  for(let t=0;t<500;t++){ const g=emptyGrid(); let ok=true;
+    for(const ln of FLEET){ let placed=false;
+      for(let a=0;a<300;a++){ const o=Math.random()<.5, r0=Math.random()*N|0, c0=Math.random()*N|0;
+        const cells=[]; for(let k=0;k<ln;k++) cells.push(idx(o?Math.min(r0+k,N-1):r0, o?c0:Math.min(c0+k,N-1)));
+        const fit = o ? r0+ln<=N : c0+ln<=N; if(!fit) continue;
+        const real=[]; for(let k=0;k<ln;k++) cells.length=0;
+        for(let k=0;k<ln;k++) real.push(idx(o?r0+k:r0, o?c0:c0+k));
+        if(canPlace(g,real)){ for(const cc of real) g[cc]=1; placed=true; break; } }
+      if(!placed){ ok=false; break; } }
+    if(ok && validateFleet(g)) return g; }
+  return randomFleet();
+}
+function renderGrid(el, g, opt){
+  el.innerHTML = '';
+  for(let i=0;i<100;i++){
+    const d = document.createElement('div'); d.className='cell';
+    const v = g[i];
+    if(v===1 && opt && opt.showShips) d.classList.add('ship');
+    if(v===2) d.classList.add('hit');
+    if(v===3) d.classList.add('miss');
+    if(v===4){ d.classList.add('dead'); d.textContent='✖'; }
+    else if(v===2) d.textContent='●';
+    else if(v===3) d.textContent='·';
+    if(opt && opt.sel===i) d.classList.add('sel');
+    if(opt && opt.click && v!==2 && v!==3 && v!==4){ d.classList.add('clickable'); d.addEventListener('click', ()=>opt.click(i)); }
+    el.appendChild(d);
+  }
+}
+function showGridStatus(g){ // для вида: 2=попадание,3=мимо,4=убит
+}
+function sunkCellsOf(grid, cells){
+  return cells.every(i => grid[i]===2 || grid[i]===4);
+}
+function markSunk(grid, view, cells){
+  for(const i of cells){ view[i]=4; for(const n of neighbors(i)) if(view[n]!==4 && grid[n]!==1) view[n]=3; }
+}
+function aliveCount(grid){ let s=0; for(let i=0;i<100;i++) if(grid[i]===1) s++; return s; }
+function beep(freq, dur, type, vol){
+  try { if(!beep.ac) beep.ac = new (window.AudioContext||window.webkitAudioContext)();
+    const o=beep.ac.createOscillator(), gn=beep.ac.createGain();
+    o.type=type||'square'; o.frequency.value=freq;
+    gn.gain.setValueAtTime(vol||0.06, beep.ac.currentTime);
+    gn.gain.exponentialRampToValueAtTime(0.001, beep.ac.currentTime+dur);
+    o.connect(gn); gn.connect(beep.ac.destination); o.start(); o.stop(beep.ac.currentTime+dur); } catch(e){}
+}
+function toMenu(){ stopPoll(); show('scr-menu'); D('ttl').textContent='⚓ КОРАБЛИ'; }
+function showInfo(){ D('ov-info').classList.add('show'); }
+
+/* ================= SETUP ================= */
+let setup = { g: emptyGrid(), remaining: FLEET.slice(), sel: 0, anchor: -1, who: 1, onDone: null, oppName: '' };
+function startSetup(who, onDone, title){
+  setup = { g: emptyGrid(), remaining: FLEET.slice(), sel: 0, anchor: -1, who: who, onDone: onDone, oppName: '' };
+  D('setup-title').textContent = title || ('PLAYER ' + who);
+  show('scr-setup'); renderFleetBtns(); renderSetupGrid();
+  D('setup-status').textContent = '⚓ Выберите корабль и нажмите две клетки (для катера — одну)';
+}
+function renderFleetBtns(){
+  const box = D('fleet-btns'); box.innerHTML = '';
+  const names = {4:'Линкор',3:'Крейсер',2:'Эсминец',1:'Катер'};
+  const cnt = {}; for(const s of setup.remaining) cnt[s]=(cnt[s]||0)+1;
+  for(const sz of [4,3,2,1]){
+    if(!cnt[sz]) continue;
+    const b = document.createElement('button');
+    b.className = 'fbtn' + (setup.sel===sz?' sel':'');
+    b.textContent = names[sz] + ' ×' + cnt[sz];
+    b.onclick = ()=>{ setup.sel=sz; setup.anchor=-1; renderFleetBtns(); };
+    box.appendChild(b);
+  }
+}
+function renderSetupGrid(){
+  renderGrid(D('setup-grid'), setup.g, {showShips:true, sel:setup.anchor, click: setupClick});
+}
+function setupClick(i){
+  if(!setup.sel){ D('setup-status').textContent='Сначала выберите корабль сверху'; return; }
+  if(setup.sel===1){ placeCells([i]); return; }
+  if(setup.anchor<0){ setup.anchor=i; renderSetupGrid(); return; }
+  const cells = shipCells(setup.anchor, i);
+  if(!cells.length){ setup.anchor=i; renderSetupGrid(); return; }
+  if(setup.remaining.indexOf(cells.length)<0){ D('setup-status').textContent='Корабль длины '+cells.length+' уже не нужен'; setup.anchor=-1; renderSetupGrid(); return; }
+  if(!canPlace(setup.g, cells)){ D('setup-status').textContent='Корабли не должны касаться даже углами'; setup.anchor=-1; renderSetupGrid(); return; }
+  placeCells(cells);
+}
+function placeCells(cells){
+  for(const c of cells) setup.g[c]=1;
+  setup.remaining.splice(setup.remaining.indexOf(cells.length),1);
+  setup.anchor=-1; setup.sel = setup.remaining[0]||0;
+  D('setup-status').textContent = 'Осталось кораблей: ' + setup.remaining.length;
+  renderFleetBtns(); renderSetupGrid();
+}
+function randomFleet(){ setup.g = randomFleet(); setup.remaining=[]; setup.anchor=-1; setup.sel=0; D('setup-status').textContent='Флот готов — жмите «В бой!»'; renderFleetBtns(); renderSetupGrid(); }
+function clearFleet(){ setup.g=emptyGrid(); setup.remaining=FLEET.slice(); setup.anchor=-1; setup.sel=0; renderFleetBtns(); renderSetupGrid(); }
+function confirmFleet(){
+  if(!validateFleet(setup.g) || setup.remaining.length){ D('setup-status').textContent='Расставьте все корабли (или нажмите «Случайно»)'; return; }
+  beep(700,.1,'triangle'); setup.onDone(setup.g);
+}
+
+/* ================= SHARED BATTLE HELPERS ================= */
+function shootInto(grid, view, ships, i){
+  let res = 'miss';
+  if(grid[i]===1){
+    grid[i]=2; view[i]=2; res='hit'; beep(300,.15,'square',.08);
+    for(const s of ships){
+      if(s.cells.indexOf(i)>=0 && !s.sunk){
+        if(s.cells.every(c=>grid[c]===2||grid[c]===4)){
+          s.sunk=true; res='sunk'; beep(140,.4,'sawtooth',.09);
+          for(const c of s.cells){ view[c]=4; for(const n of neighbors(c)) if(grid[n]!==1) view[n]=3; }
+        }
+      }
+    }
+  } else if(grid[i]===0){ grid[i]=3; view[i]=3; res='miss'; beep(520,.12,'sine',.05); }
+  return res;
+}
+function shipsOf(grid){
+  const seen=new Set(), ships=[];
+  for(let i=0;i<100;i++){ if(grid[i]!==1||seen.has(i)) continue;
+    const q=[i], cells=[]; seen.add(i);
+    while(q.length){ const cur=q.pop(); cells.push(cur);
+      for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){ const r=(cur/10)|0, c=cur%10; if(!inb(r+dr,c+dc)) continue; const nk=idx(r+dr,c+dc); if(grid[nk]===1&&!seen.has(nk)){ seen.add(nk); q.push(nk); } } }
+    ships.push({cells:cells, sunk:false}); }
+  return ships;
+}
+function aliveShips(ships){ return ships.filter(s=>!s.sunk).length; }
+function esc(s){ return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function endLocal(winner){
+  show('scr-battle');
+  D('battle-status').innerHTML = winner ? ('🏆 <b>Победа: ' + esc(winner) + '!</b>') : '💀 Игра окончена';
+  D('ov-over').classList.add('show');
+  D('over-msg').innerHTML = winner ? ('🏆 <b>ПОБЕДА!</b><br>Победил: ' + esc(winner)) : '💀 <b>ИГРА ОКОНЧЕНА</b>';
+}
+
+/* ================= BOT MODE ================= */
+let game = null, botTimer = null;
+function startBot(){ startSetup(1, g => {
+  const bg = randomFleet();
+  game = { mode:'bot', my:g, myView:emptyGrid(), myShips:shipsOf(g),
+           bot:bg, botView:emptyGrid(), botShips:shipsOf(bg), turn:'me', botQueue:[] };
+  show('scr-battle'); renderBattle();
+}, 'ВЫ vs БОТ'); }
+function renderBattle(){
+  if(!game) return;
+  if(game.mode==='bot'){
+    renderGrid(D('own-grid'), merge(game.my, game.myView), {});
+    renderGrid(D('enemy-grid'), game.botView, {click: game.turn==='me' ? playerShoot : null});
+    D('enemy-title').textContent = '🤖 Бот';
+    D('battle-status').textContent = game.turn==='me' ? '🎯 Ваш ход — стреляйте!' : '🤖 Бот целится…';
+  } else if(game.mode==='hot'){
+    const me = game.cur, opp = me===1?2:1;
+    renderGrid(D('own-grid'), merge(game['p'+me].g, game['p'+me].view), {});
+    renderGrid(D('enemy-grid'), game['p'+me].shots, {click: game.locked?null:hotShoot});
+    D('enemy-title').textContent = 'Флот Player ' + opp;
+    D('battle-status').textContent = (game.locked?'📱 Передайте телефон':'🎯 Ход Player ' + me + ' — стреляйте!');
+  }
+}
+function merge(g, view){ const out=[]; for(let i=0;i<100;i++) out.push(view[i]||g[i]); return out; }
+function playerShoot(i){
+  if(!game || game.turn!=='me') return;
+  const res = shootInto(game.bot, game.botView, game.botShips, i);
+  renderBattle();
+  if(aliveShips(game.botShips)===0){ game=null; return endLocal('Вы'); }
+  if(res==='miss'){ game.turn='bot'; renderBattle(); botTimer=setTimeout(botStep, 750); }
+}
+function botStep(){
+  if(!game || game.mode!=='bot') return;
+  let i = -1;
+  while(game.botQueue.length){ const c = game.botQueue.pop(); if(game.my[c]===1 && game.myView[c]!==2 && game.myView[c]!==4){ i=c; break; } }
+  if(i<0){
+    for(let t=0;t<400;t++){ const c = Math.random()*100|0;
+      if(game.myView[c]!==2 && game.myView[c]!==3 && game.myView[c]!==4){ i=c; break; } }
+    if(i<0) return endLocal('Бот');
+  }
+  const res = shootInto(game.my, game.myView, game.myShips, i);
+  renderBattle();
+  if(aliveShips(game.myShips)===0){ game=null; return endLocal('Бот'); }
+  if(res!=='miss'){
+    for(const n of neighbors(i)) if(game.myView[n]===0) game.botQueue.push(n);
+    botTimer=setTimeout(botStep, 750);
+  } else { game.turn='me'; renderBattle(); }
+}
+
+/* ================= HOTSEAT ================= */
+function startHotseat(){ startSetup(1, g1 => {
+  setupDone1 = g1;
+  passPhase = 'setup2';
+  showPass('📱 Передайте телефон — Player 2 расставляет флот', 'Я Player 2 — расставить флот');
+}, 'PLAYER 1 — расставьте флот'); }
+let passPhase = '';
+function showPass(text, btn){
+  D('pass-status').textContent = text; D('pass-btn').textContent = btn;
+  show('scr-pass');
+}
+function passNext(){
+  if(passPhase==='setup2'){
+    passPhase = '';
+    startSetup(2, g2 => {
+      game = { mode:'hot', p1:{g:setupDone1, view:emptyGrid(), shots:emptyGrid(), ships:shipsOf(setupDone1)},
+               p2:{g:g2, view:emptyGrid(), shots:emptyGrid(), ships:shipsOf(g2)}, cur:1, locked:false };
+      passPhase = 'turn';
+      showPass('📱 Передайте телефон — ход Player 1', 'Я Player 1 — продолжить');
+    }, 'PLAYER 2 — расставьте флот');
+    return;
+  }
+  game.locked=false; show('scr-battle'); renderBattle();
+}
+let setupDone1 = null;
+function hotShoot(i){
+  if(!game || game.locked) return;
+  const me = game.cur, opp = me===1?2:1;
+  const res = shootInto(game['p'+opp].g, game['p'+me].shots, game['p'+opp].ships, i);
+  renderBattle();
+  if(aliveShips(game['p'+opp].ships)===0){ game=null; return endLocal('Player '+me); }
+  if(res==='miss'){
+    game.cur = opp; game.locked = true; passPhase = 'turn';
+    showPass('📱 Передайте телефон — ход Player ' + opp, 'Я Player ' + opp + ' — продолжить');
+  }
+}
+
+/* ================= ONLINE ================= */
+let pollT = null;
+function api(path, opt){
+  return fetch(path, Object.assign({headers:{'Authorization':INIT}}, opt||{}));
+}
+function startOnline(){
+  if(!INIT){ D('online-status').textContent = '❌ Откройте игру из бота, чтобы играть онлайн'; return show('scr-online'); }
+  show('scr-online'); stopPoll(); pollLobby();
+}
+async function pollLobby(){
+  try {
+    const r = await api('/api/online');
+    if(!r.ok) throw 0;
+    const j = await r.json();
+    if(j.err) throw 0;
+    D('online-status').textContent = j.incoming ? ('⚔️ Вас вызвал ' + j.incoming.from_name + ' — примите вызов кнопками в чате у бота!') : 'Выберите соперника:';
+    const box = D('plist'); box.innerHTML='';
+    if(!j.players.length) box.innerHTML = '<div class="prow">Никого нет онлайн — позовите друзей открыть бота</div>';
+    for(const p of j.players){
+      const d = document.createElement('div'); d.className='prow';
+      d.innerHTML = '<span>' + esc(p.name) + '</span>';
+      const b = document.createElement('button');
+      if(p.busy){ b.disabled=true; b.textContent='В бою'; }
+      else { b.textContent='Вызвать'; b.onclick=()=>doChallenge(p.id, b); }
+      d.appendChild(b); box.appendChild(d);
+    }
+    if(j.incoming) lobbyTick(); else setTimeout(pollLobby, 3000);
+  } catch(e) {
+    D('online-status').textContent = '⚠️ Нет связи с сервером';
+    setTimeout(pollLobby, 4000);
+  }
+}
+function lobbyTick(){ // если нас уже вызвали в партию — переходим к бою
+  stopPoll(); pollT = setInterval(checkStateTick, 2000);
+}
+async function checkStateTick(){
+  try {
+    const r = await api('/api/state'); if(!r.ok) throw 0;
+    const j = await r.json();
+    if(j.party){ clearInterval(pollT); pollT = setInterval(renderOnline, 1500); renderOnline(); }
+  } catch(e) {}
+}
+async function doChallenge(uid, btn){
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await api('/api/challenge', {method:'POST', headers:{'Content-Type':'application/json','Authorization':INIT}, body: JSON.stringify({target: uid})});
+    const j = await r.json();
+    D('online-status').textContent = j.ok ? '⌛️ Вызов отправлен — ждите ответа (кнопка придёт сопернику в чат)' : ('❌ ' + (j.err||'Ошибка'));
+    if(j.ok) setTimeout(pollLobby, 1500); else btn.disabled=false, btn.textContent='Вызвать';
+  } catch(e) { D('online-status').textContent='⚠️ Нет связи'; btn.disabled=false; btn.textContent='Вызвать'; }
+}
+function stopPoll(){ if(pollT){ clearInterval(pollT); pollT=null; } }
+async function renderOnline(){
+  try {
+    const r = await api('/api/state'); const j = await r.json();
+    if(!j.party){ show('scr-online'); stopPoll(); pollT=setInterval(pollLobby, 500); return; }
+    const pt = j.party;
+    D('ttl').textContent = '⚓ МОРСКОЙ БОЙ';
+    show('scr-battle');
+    if(!pt.started){
+      D('battle-status').textContent = '👤 Соперник: ' + esc(pt.opp_name) + ' — флот расставляется…';
+      renderGrid(D('own-grid'), pt.own_grid, {showShips:true});
+      renderGrid(D('enemy-grid'), emptyGrid(), {});
+      return;
+    }
+    renderGrid(D('own-grid'), pt.own_grid, {});
+    const ev = emptyGrid();
+    for(const k in pt.enemy_view){ const m = k.match(/r(\d+),c(\d+)/); if(m) ev[idx(+m[1],+m[2])] = pt.enemy_view[k]; }
+    for(const k of (pt.enemy_sunk_cells||[])){ const m = k.match(/r(\d+),c(\d+)/); if(m) ev[idx(+m[1],+m[2])] = 4; }
+    renderGrid(D('enemy-grid'), ev, {click: (pt.turn_you && !pt.over) ? onlineShoot : null});
+    D('enemy-title').textContent = '👤 ' + esc(pt.opp_name);
+    if(pt.over){
+      const iWon = pt.winner === MYID;
+      D('battle-status').textContent = '🏁 Партия завершена';
+      D('ov-over').classList.add('show');
+      D('over-msg').innerHTML = iWon ? '🏆 <b>ПОБЕДА!</b><br>+300 🪙 уже начислены' : '💀 <b>ПОРАЖЕНИЕ</b>';
+      stopPoll();
+    } else {
+      D('battle-status').textContent = pt.turn_you ? '🎯 Ваш ход — стреляйте!' : '⌛️ Ход соперника: ' + esc(pt.opp_name);
+    }
+  } catch(e) { D('battle-status').textContent = '⚠️ Нет связи с сервером'; }
+}
+async function onlineShoot(i){
+  try {
+    const r = await api('/api/shoot', {method:'POST', headers:{'Content-Type':'application/json','Authorization':INIT}, body: JSON.stringify({cell: 'r'+((i/10)|0)+',c'+(i%10)})});
+    const j = await r.json();
+    if(j.ok && j.result==='miss'){ beep(520,.12,'sine',.05); }
+    if(j.ok && j.result!=='miss'){ beep(j.result==='sunk'?140:300, j.result==='sunk'?.4:.15, j.result==='sunk'?'sawtooth':'square', .08); }
+    if(j.err==='not_turn') return;
+    renderOnline();
+  } catch(e) {}
+}
